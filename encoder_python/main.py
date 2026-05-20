@@ -1,8 +1,10 @@
-import serial
-import os
-import time
 import datetime
+import os
+import serial
 import struct
+import time
+
+from crc16_modbus import calc_crc16_naive
 
 max_counts = 32768                   # max number of angle counts from 15-bit sensor
 max_rot = 32767                      # max number of revolutions (15-bit), MSB defines direction
@@ -15,13 +17,13 @@ data_len = 50
 
 # JY-ME02-485 typical requests
 cmd_bytes_request = {
-    "angle": (bytes.fromhex('50 03 00 11 00 01 D9 8E'), lambda x: x * deg_per_count),
-    "rot": (bytes.fromhex('50 03 00 12 00 01 29 8E'), lambda x: x if x < max_rot else x - 2 ** 16),
-    "angle_vel": (bytes.fromhex('50 03 00 13 00 01 78 4E'),
+    "angle": (bytes.fromhex("50 03 00 11 00 01 D9 8E"), lambda x: x * deg_per_count),
+    "rot": (bytes.fromhex("50 03 00 12 00 01 29 8E"), lambda x: x if x < max_rot else x - 2 ** 16),
+    "angle_vel": (bytes.fromhex("50 03 00 13 00 01 78 4E"),
                   lambda x: x if x < max_rot else x - 2 ** 16),
-    "temp": (bytes.fromhex('50 03 00 14 00 01 C9 8F'), lambda x: x / 100),
+    "temp": (bytes.fromhex("50 03 00 14 00 01 C9 8F"), lambda x: x / 100),
 
-    "read_all": (bytes.fromhex('50 03 00 00 00 30'), lambda x: hex(int(x))),
+    "read_all": (bytes.fromhex(f"50 03 00 00 {hex(data_len)[2:]}"), lambda x: hex(int(x))),
 }
 
 # JY-ME02-485 typical response headers
@@ -144,4 +146,3 @@ def read_data_by_reg(averages=10):
 if __name__ == "__main__":
     read_data_by_reg()
     read_all(averages=1)
-
