@@ -38,7 +38,7 @@ def generate_crc16_table():
     return table
 
 
-def calc_crc16_naive(data, big_endian=True):
+def calc_crc16_naive(data, little_endian=True):
     crc = 0xFFFF
 
     for byte in data:
@@ -52,10 +52,10 @@ def calc_crc16_naive(data, big_endian=True):
 
     crc &= 0xFFFF
 
-    return ((crc & 0xFF) << 8) | ((crc & 0xFF00) >> 8) if big_endian else crc
+    return int.to_bytes(crc, 2, byteorder='little' if little_endian else 'big')
 
 
-def calc_crc16(data, big_endian=True):
+def calc_crc16(data, little_endian=True):
     crc = 0xFFFF
 
     for byte in data:
@@ -63,7 +63,12 @@ def calc_crc16(data, big_endian=True):
 
     crc &= 0xFFFF
 
-    return ((crc & 0xFF) << 8) | ((crc & 0xFF00) >> 8) if big_endian else crc
+    return int.to_bytes(crc, 2, byteorder='little' if little_endian else 'big')
+
+
+def append_crc16(data, little_endian=True, crc_func=calc_crc16_naive):
+    crc = crc_func(data, little_endian=little_endian)
+    return data + crc
 
 
 if __name__ == '__main__':
