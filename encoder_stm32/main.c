@@ -1,16 +1,16 @@
 /*
- * JYME02-485 Modbus RTU master driver
- * Target: 			Blue Pill  (STM32F103C8T6)
- * Toolchain:   Keil MDK   (CMSIS, direct register access)
- * USART: 			USART1   	 PA9  = TX,  PA10 = RX
- * RS-485: 			DE/RE    	 PA8  (tie together on the transceiver side)
+ * JYME02-485  --  Modbus RTU master driver
+ * Target:    Blue Pill  (STM32F103C8T6)
+ * Toolchain:   Keil MDK  (CMSIS, direct register access)
+ * USART:     USART1   PA9  = TX,  PA10 = RX
+ * RS-485:    DE/RE    PA8  (tie together on the transceiver)
  *
  * Wiring  diagram (MAX485 module)
  * Blue Pill PA9  --> DI
  * Blue Pill PA10 <-- RO
  * Blue Pill PA8  --> DE + RE (both pins bridged/soldered)
  * A / B          --> sensor A / B
- * 5 V          	--> VCC  (sensor uses 5 V)
+ * 5 V            --> VCC  (sensor uses 5 V)
  * GND            --> GND
  */
 
@@ -18,19 +18,21 @@
 #include <stdint.h>
 
 // RS-485 direction-control pin
-#define DE_RE_PIN     (1u << 8)               		// PA8
+#define DE_RE_PIN     (1u << 8)                 	// PA8
 #define DE_RE_HIGH()  (GPIOA->BSRR = DE_RE_PIN)   // TX enable
 #define DE_RE_LOW()   (GPIOA->BRR  = DE_RE_PIN)   // RX enable
 
 // JY-ME02-485 redister map
-#define JYME_SLAVE_ADDR   0x50u   	// default Modbus address 
-#define JYME_BAUD         9600u   	// default baud rate 
-#define REG_TEMPERATURE   0x14u 		// Input register: temp  (×0.1 °C)  
+#define JYME_SLAVE_ADDR	   0x50u    				// default Modbus address 
+#define JYME_BAUD					 9600u    				// default baud rate 
+#define REG_TEMPERATURE	   0x14u	   				// Temp in 0.01 °C
+#define REG_ANGLE				   0x11u	   				// Angle reg
+#define ANGLE_PER_COUNT    360 / 0x7FFF			// Resolution per count for 15-bit sensor
 
 // MODBUS settings
-#define MODBUS_FC_READ_INPUT_REGS  0x04u
-#define RX_BUF_SIZE   16u
-#define TX_TIMEOUT    50000u
+#define MODBUS_FC_READ_INPUT_REGS  	0x03u
+#define RX_BUF_SIZE   							16u
+#define TX_TIMEOUT    							50000u
 
 // function declaration
 static void clock_init  (void);
@@ -38,16 +40,16 @@ static void gpio_init   (void);
 static void usart1_init (void);
 static void delay_ms    (uint32_t ms);
 
-// static void uart_send_byte (uint8_t b);
-// static int uart_recv_byte (uint8_t *b, uint32_t timeout);
+static void uart_send_byte (uint8_t b);
+static int uart_recv_byte (uint8_t *b, uint32_t timeout);
 
-// static uint16_t crc16_modbus (const uint8_t *buf, uint16_t len);
-/* static int modbus_read  (uint8_t  slave, 
+static uint16_t crc16_modbus (const uint8_t *buf, uint16_t len);
+static int modbus_read  (uint8_t  slave, 
 												 uint8_t  fc, 
 												 uint16_t reg_addr,
                          uint16_t num_regs,
                          uint16_t *out);
-*/
+
 
 int main(void)
 {
@@ -57,13 +59,28 @@ int main(void)
 
     while (1)
     {
+        uint16_t regs[2] = {0, 0};
+
+        /* Read 1 consecutive input registers starting at ADR
+         *
+         * JYME02-485 response:
+         *   [addr][0x04][byte_count][adr_hi][adr_lo][crc_lo][crc_hi]
+         */
+        
+				if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ANGLE, 1, regs) == 0)
+        {
+            uint16_t measure_raw = regs[0];
+
+            int measure = measure_raw * ANGLE_PER_COUNT;
+						(void) measure;
+        }
         delay_ms(1000);
     }
 }
 
-//  clock_init – 72 MHz from 8 MHz 
 static void clock_init(void)
 {
+		// clock_init – 72 MHz from 8 MHz 
     FLASH->ACR = FLASH_ACR_LATENCY_2 | FLASH_ACR_PRFTBE;
 
     RCC->CR |= RCC_CR_HSEON;
@@ -81,33 +98,25 @@ static void clock_init(void)
     SystemCoreClock = 72000000u;
 }
 
-/*  gpio_init
- *    PA8  output push-pull 50 MHz  (DE/RE)
- *    PA9  output AF  push-pull 50 MHz  (USART1 TX)
- *    PA10 input  floating             (USART1 RX)
- *    PA13 output push-pull  2 MHz     (on-board LED, active-low)
- */
 static void gpio_init(void)
 {
-    RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
+		// PA8  output push-pull 50 MHz  			(DE/RE)
+		// PA9  output AF  push-pull 50 MHz  	(USART1 TX)
+		// PA10 input  floating             	(USART1 RX)
+		RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
 
-    /* CRH  = PA8..PA15   (4 bits each: CNF[1:0] | MODE[1:0]) */
+    // CRH  = PA8..PA15   (4 bits each: CNF[1:0] | MODE[1:0])
     GPIOA->CRH = (GPIOA->CRH
-        & ~( (0xFu << 0)     /* PA8  */
-           | (0xFu << 4)     /* PA9  */
-           | (0xFu << 8)     /* PA10 */
-           | (0xFu << 20) )) /* PA13 */
-        | (0x3u << 0)        /* PA8  GP  out PP 50 MHz */
-        | (0xBu << 4)        /* PA9  AF  out PP 50 MHz */
-        | (0x4u << 8)        /* PA10 input floating    */
-        | (0x2u << 20);      /* PA13 GP  out PP  2 MHz */
+        & ~( (0xFu << 0)        // PA8  
+          | (0xFu << 4)   		  // PA9 
+          | (0xFu << 8))) 		  // PA10
+					| (0x3u << 0)         // PA8  GP  out PP 50 MHz
+					| (0xBu << 4)    	    // PA9  AF  out PP 50 MHz
+					| (0x4u << 8);    	  // PA10 input floating   
 
-    DE_RE_LOW();                          /* start in RX mode          */
-    GPIOA->ODR |= (1u << 13);            /* LED off (active-low)       */
+    DE_RE_LOW();                // start in RX mode
 }
 
-//  usart1_init – 9600 8N1
-//  APB2 = 72 MHz  ?  BRR = 72 000 000 / 9600 = 7500
 static void usart1_init(void)
 {
     RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
@@ -119,7 +128,6 @@ static void usart1_init(void)
     USART1->CR1 = USART_CR1_UE | USART_CR1_TE | USART_CR1_RE;
 }
 
-//  delay_ms  –  DWT cycle-counter busy-wait
 static void delay_ms(uint32_t ms)
 {
     if (!(CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk))
@@ -133,3 +141,72 @@ static void delay_ms(uint32_t ms)
     while ((DWT->CYCCNT - start) < ms * ticks);
 }
 
+static void uart_send_byte(uint8_t b)
+{
+    while (!(USART1->SR & USART_SR_TXE));
+    USART1->DR = b;
+}
+
+static int uart_recv_byte(uint8_t *b, uint32_t timeout)
+{
+    while (!(USART1->SR & USART_SR_RXNE))
+        if (timeout-- == 0) return -1;
+    *b = (uint8_t)(USART1->DR & 0xFFu);
+    return 0;
+}
+
+static uint16_t crc16_modbus(const uint8_t *buf, uint16_t len)
+{
+    uint16_t crc = 0xFFFFu;
+    for (uint16_t i = 0; i < len; i++)
+    {
+        crc ^= buf[i];
+        for (uint8_t b = 0; b < 8; b++)
+            crc = (crc & 1u) ? ((crc >> 1) ^ 0xA001u) : (crc >> 1);
+    }
+    return crc;
+}
+
+static int modbus_read(uint8_t  slave,
+                       uint8_t  fc,
+                       uint16_t reg_addr,
+                       uint16_t num_regs,
+                       uint16_t *out)
+{
+    // Build 8-byte Modbus RTU request
+    uint8_t  req[8];
+    req[0] = slave;
+    req[1] = fc;
+    req[2] = (uint8_t)(reg_addr >> 8);
+    req[3] = (uint8_t)(reg_addr & 0xFFu);
+    req[4] = (uint8_t)(num_regs >> 8);
+    req[5] = (uint8_t)(num_regs & 0xFFu);
+    uint16_t crc = crc16_modbus(req, 6);
+    req[6] = (uint8_t)(crc & 0xFFu);   			// low byte first in MODBUS CRC
+    req[7] = (uint8_t)(crc >> 8);
+
+    // Transmit
+    DE_RE_HIGH();
+    for (uint8_t i = 0; i < 8; i++) uart_send_byte(req[i]);
+    while (!(USART1->SR & USART_SR_TC));   	// wait until shift-reg empty
+    DE_RE_LOW();
+
+    // Receive: 3 header + 2*N data + 2 CRC
+    uint8_t expected = (uint8_t)(3u + 2u * num_regs + 2u);
+    if (expected > RX_BUF_SIZE) return -1;
+
+    uint8_t rx[RX_BUF_SIZE];
+    for (uint8_t i = 0; i < expected; i++)
+        if (uart_recv_byte(&rx[i], TX_TIMEOUT) != 0) return -1;
+
+    // Validate CRC
+    uint16_t rx_crc   = ((uint16_t)rx[expected - 1] << 8) | rx[expected - 2];
+    uint16_t calc_crc = crc16_modbus(rx, (uint16_t)(expected - 2u));
+    if (rx_crc != calc_crc) return -1;
+
+    // Unpack big-endian register values
+    for (uint16_t i = 0; i < num_regs; i++)
+        out[i] = ((uint16_t)rx[3u + i * 2u] << 8) | rx[4u + i * 2u];
+
+    return 0;
+}
