@@ -19,22 +19,22 @@
 
 // RS-485 direction-control pin
 #define DE_RE_PIN     (1u << 8)                 	// PA8
-#define DE_RE_HIGH()  (GPIOA->BSRR = DE_RE_PIN)   // TX enable
-#define DE_RE_LOW()   (GPIOA->BRR  = DE_RE_PIN)   // RX enable
+#define DE_RE_HIGH()  (GPIOA->BSRR = DE_RE_PIN)   	// TX enable
+#define DE_RE_LOW()   (GPIOA->BRR  = DE_RE_PIN)   	// RX enable
 
 // JY-ME02-485 redister map
-#define JYME_SLAVE_ADDR	   0x50u    				// default Modbus address 
-#define JYME_BAUD					 9600u    				// default baud rate 
-#define REG_ANGLE				   0x11u	   				// Angle reg
-#define REG_ROT			  	   0x12u	   				// Number of revolutions
-#define REG_ANGLE_ACC 	   0x13u	   				// Angle acceleration reg
-#define REG_TEMP 				   0x14u	   				// Temp in 0.01 °C
-#define MAX_COUNT					 0x7FFF						// Max number for 15-bit reg
+#define JYME_SLAVE_ADDR			0x50u    				// default Modbus address 
+#define JYME_BAUD				9600u    				// default baud rate 
+#define REG_ANGLE				0x11u	   				// Angle reg
+#define REG_ROT					0x12u	   				// Number of revolutions
+#define REG_ANGLE_ACC			0x13u	   				// Angle acceleration reg
+#define REG_TEMP				0x14u	   				// Temp in 0.01 degC
+#define MAX_COUNT				0x7FFF					// Max number for 15-bit reg
 
 // MODBUS settings
 #define MODBUS_FC_READ_INPUT_REGS  	0x03u
-#define RX_BUF_SIZE   							16u
-#define TX_TIMEOUT    							50000u
+#define RX_BUF_SIZE   				16u
+#define TX_TIMEOUT    				50000u
 
 // function declaration
 static void clock_init (void);
@@ -47,8 +47,8 @@ static int uart_recv_byte (uint8_t *b, uint32_t timeout);
 
 static uint16_t crc16_modbus (const uint8_t *buf, uint16_t len);
 static int modbus_read  (uint8_t  slave, 
-												 uint8_t  fc, 
-												 uint16_t reg_addr,
+						 uint8_t  fc, 
+						 uint16_t reg_addr,
                          uint16_t num_regs,
                          uint16_t *out);
 
@@ -78,13 +78,13 @@ int main(void)
 
 static void clock_init(void)
 {
-		// clock_init – 72 MHz from 8 MHz 
+		// clock_init ï¿½ 72 MHz from 8 MHz 
     FLASH->ACR = FLASH_ACR_LATENCY_2 | FLASH_ACR_PRFTBE;
 
     RCC->CR |= RCC_CR_HSEON;
     while (!(RCC->CR & RCC_CR_HSERDY));
 
-    /* PLL: HSE × 9 = 72 MHz, APB1 = 36 MHz */
+    /* PLL: HSE ï¿½ 9 = 72 MHz, APB1 = 36 MHz */
     RCC->CFGR = RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL9 | RCC_CFGR_PPRE1_DIV2;
 
     RCC->CR |= RCC_CR_PLLON;
@@ -98,21 +98,21 @@ static void clock_init(void)
 
 static void gpio_init(void)
 {
-		// PA8  output push-pull 50 MHz  			(DE/RE)
-		// PA9  output AF  push-pull 50 MHz  	(USART1 TX)
-		// PA10 input  floating             	(USART1 RX)
-		RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
+	// PA8  output push-pull 50 MHz  			(DE/RE)
+	// PA9  output AF  push-pull 50 MHz  	(USART1 TX)
+	// PA10 input  floating             	(USART1 RX)
+	RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
 
     // CRH  = PA8..PA15   (4 bits each: CNF[1:0] | MODE[1:0])
     GPIOA->CRH = (GPIOA->CRH
-        & ~( (0xFu << 0)        // PA8  
-          | (0xFu << 4)   		  // PA9 
-          | (0xFu << 8))) 		  // PA10
-					| (0x3u << 0)         // PA8  GP  out PP 50 MHz
-					| (0xBu << 4)    	    // PA9  AF  out PP 50 MHz
-					| (0x4u << 8);    	  // PA10 input floating   
+					& ~( (0xFu << 0)	// PA8  
+					| (0xFu << 4)		// PA9 
+					| (0xFu << 8)))		// PA10
+					| (0x3u << 0)		// PA8  GP  out PP 50 MHz
+					| (0xBu << 4)		// PA9  AF  out PP 50 MHz
+					| (0x4u << 8);		// PA10 input floating   
 
-    DE_RE_LOW();                // start in RX mode
+    DE_RE_LOW();		// start in RX mode
 }
 
 static void usart1_init(void)
@@ -180,14 +180,14 @@ static int modbus_read(uint8_t  slave,
     req[4] = (uint8_t)(num_regs >> 8);
     req[5] = (uint8_t)(num_regs & 0xFFu);
     uint16_t crc = crc16_modbus(req, 6);
-    req[6] = (uint8_t)(crc & 0xFFu);   			// low byte first in MODBUS CRC
+    req[6] = (uint8_t)(crc & 0xFFu);			// low byte first in MODBUS CRC
     req[7] = (uint8_t)(crc >> 8);
 
     // Transmit
-		USART1->SR &= ~USART_SR_TC;   					// clear stale TC flag first
+	USART1->SR &= ~USART_SR_TC;   				// clear stale TC flag first
     DE_RE_HIGH();
     for (uint8_t i = 0; i < 8; i++) uart_send_byte(req[i]);
-    while (!(USART1->SR & USART_SR_TC));   	// wait until shift-reg empty
+    while (!(USART1->SR & USART_SR_TC));   		// wait until shift-reg empty
     DE_RE_LOW();
 
     // Receive: 3 header + 2*N data + 2 CRC
@@ -212,33 +212,33 @@ static int modbus_read(uint8_t  slave,
 
 static double read_angle()
 {
-		uint16_t buff = 0;
+	uint16_t buff = 0;
 	
-		if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ANGLE, 1, &buff) == 0)
-    {
-				return (double) buff * 360.0 / MAX_COUNT;
-		}
-		return 0.0;
+	if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ANGLE, 1, &buff) == 0)
+	{
+		return (double) buff * 360.0 / MAX_COUNT;
+	}
+	return 0.0;
 }
 
 static int16_t read_rot()
 {
-		uint16_t buff = 0;
+	uint16_t buff = 0;
 	
-		if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ROT, 1, &buff) == 0)
-    {
-				return (int16_t) buff;
-		}
-		return 0;
+	if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ROT, 1, &buff) == 0)
+	{
+		return (int16_t) buff;
+	}
+	return 0;
 }
 
 static double read_temp() 
 {
-		uint16_t buff = 0;
+	uint16_t buff = 0;
 	
-		if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_TEMP, 1, &buff) == 0)
-    {
-				return (double) buff / 100.0;
-		}
-		return 0.0;
+	if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_TEMP, 1, &buff) == 0)
+	{
+		return (double) buff / 100.0;
+	}
+	return 0.0;
 }
