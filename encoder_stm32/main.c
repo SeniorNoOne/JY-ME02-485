@@ -25,9 +25,11 @@
 // JY-ME02-485 redister map
 #define JYME_SLAVE_ADDR	   0x50u    				// default Modbus address 
 #define JYME_BAUD					 9600u    				// default baud rate 
-#define REG_TEMPERATURE	   0x14u	   				// Temp in 0.01 °C
 #define REG_ANGLE				   0x11u	   				// Angle reg
-#define ANGLE_PER_COUNT    360 / 0x7FFF			// Resolution per count for 15-bit sensor
+#define REG_ROT			  	   0x12u	   				// Number of revolutions
+#define REG_ANGLE_ACC 	   0x13u	   				// Angle acceleration reg
+#define REG_TEMP 				   0x14u	   				// Temp in 0.01 °C
+#define MAX_COUNT					 0x7FFF						// Max number for 15-bit reg
 
 // MODBUS settings
 #define MODBUS_FC_READ_INPUT_REGS  	0x03u
@@ -35,10 +37,10 @@
 #define TX_TIMEOUT    							50000u
 
 // function declaration
-static void clock_init  (void);
-static void gpio_init   (void);
+static void clock_init (void);
+static void gpio_init (void);
 static void usart1_init (void);
-static void delay_ms    (uint32_t ms);
+static void delay_ms (uint32_t ms);
 
 static void uart_send_byte (uint8_t b);
 static int uart_recv_byte (uint8_t *b, uint32_t timeout);
@@ -50,6 +52,9 @@ static int modbus_read  (uint8_t  slave,
                          uint16_t num_regs,
                          uint16_t *out);
 
+static double read_angle(void);
+static int16_t read_rot(void);
+static double read_temp(void);
 
 int main(void)
 {
@@ -59,21 +64,14 @@ int main(void)
 
     while (1)
     {
-        uint16_t regs[2] = {0, 0};
-
-        /* Read 1 consecutive input registers starting at ADR
-         *
-         * JYME02-485 response:
-         *   [addr][0x04][byte_count][adr_hi][adr_lo][crc_lo][crc_hi]
-         */
-        
-				if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ANGLE, 1, regs) == 0)
-        {
-            uint16_t measure_raw = regs[0];
-
-            int measure = measure_raw * ANGLE_PER_COUNT;
-						(void) measure;
-        }
+        double angle = read_angle();
+				int16_t rot = read_rot();
+				double temp_C = read_temp();
+				
+				(void) angle;
+				(void) rot;
+				(void) temp_C;
+			
         delay_ms(1000);
     }
 }
@@ -186,6 +184,7 @@ static int modbus_read(uint8_t  slave,
     req[7] = (uint8_t)(crc >> 8);
 
     // Transmit
+		USART1->SR &= ~USART_SR_TC;   					// clear stale TC flag first
     DE_RE_HIGH();
     for (uint8_t i = 0; i < 8; i++) uart_send_byte(req[i]);
     while (!(USART1->SR & USART_SR_TC));   	// wait until shift-reg empty
@@ -209,4 +208,37 @@ static int modbus_read(uint8_t  slave,
         out[i] = ((uint16_t)rx[3u + i * 2u] << 8) | rx[4u + i * 2u];
 
     return 0;
+}
+
+static double read_angle()
+{
+		uint16_t buff = 0;
+	
+		if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ANGLE, 1, &buff) == 0)
+    {
+				return (double) buff * 360.0 / MAX_COUNT;
+		}
+		return 0.0;
+}
+
+static int16_t read_rot()
+{
+		uint16_t buff = 0;
+	
+		if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ROT, 1, &buff) == 0)
+    {
+				return (int16_t) buff;
+		}
+		return 0;
+}
+
+static double read_temp() 
+{
+		uint16_t buff = 0;
+	
+		if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_TEMP, 1, &buff) == 0)
+    {
+				return (double) buff / 100.0;
+		}
+		return 0.0;
 }
