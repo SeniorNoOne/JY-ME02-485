@@ -1,0 +1,32 @@
+# Build output
+build/
+*.axf
+*.hex
+*.bin
+*.map
+*.lst
+*.d
+*.o
+*.dep
+
+# Debug output
+DebugConfig/
+*.dbconf
+
+# Keil-generated listings and debug
+*.htm
+*.sct
+*.scvd
+Listings/
+Objects/
+
+# RTE (auto-generated, reconstructed from .cprj / .uvprojx)
+RTE/
+
+# IDE local settings (machine-specific)
+*.uvguix.*
+*.uvoptx
+*.uvgdbinit
+
+# Debug session
+EventRecorderStub.scvd
