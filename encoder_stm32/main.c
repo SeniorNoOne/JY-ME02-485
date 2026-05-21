@@ -23,17 +23,16 @@
 #define DE_RE_LOW()   (GPIOA->BRR  = DE_RE_PIN)   	// RX enable
 
 // JY-ME02-485 redister map
-#define JYME_SLAVE_ADDR			0x50u    				// default Modbus address 
-#define JYME_BAUD				9600u    				// default baud rate 
-#define REG_ANGLE				0x11u	   				// Angle reg
-#define REG_ROT					0x12u	   				// Number of revolutions
-#define REG_ANGLE_ACC			0x13u	   				// Angle acceleration reg
-#define REG_TEMP				0x14u	   				// Temp in 0.01 degC
-#define MAX_COUNT				0x7FFF					// Max number for 15-bit reg
+#define JYME_SLAVE_ADDR			0x50u    			// default Modbus address 
+#define JYME_BAUD				9600u    			// default baud rate 
+#define REG_ANGLE				0x11u	   			// Angle reg
+#define REG_ROT					0x12u	   			// Number of revolutions
+#define REG_ANGLE_ACC			0x13u	   			// Angle acceleration reg
+#define REG_TEMP				0x14u	   			// Temp in 0.01 degC
+#define MAX_COUNT				0x7FFF				// Max number for 15-bit reg
 
 // MODBUS settings
 #define MODBUS_FC_READ_INPUT_REGS  	0x03u
-#define RX_BUF_SIZE   				16u
 #define TX_TIMEOUT    				50000u
 
 // function declaration
@@ -46,11 +45,10 @@ static void uart_send_byte (uint8_t b);
 static int uart_recv_byte (uint8_t *b, uint32_t timeout);
 
 static uint16_t crc16_modbus (const uint8_t *buf, uint16_t len);
-static int modbus_read  (uint8_t  slave, 
-						 uint8_t  fc, 
-						 uint16_t reg_addr,
-                         uint16_t num_regs,
-                         uint16_t *out);
+static int modbus_read_reg(uint8_t  slave,
+                           uint8_t  fc,
+                           uint16_t reg_addr,
+                           uint16_t *out);
 
 static double read_angle(void);
 static int16_t read_rot(void);
@@ -165,80 +163,61 @@ static uint16_t crc16_modbus(const uint8_t *buf, uint16_t len)
     return crc;
 }
 
-static int modbus_read(uint8_t  slave,
-                       uint8_t  fc,
-                       uint16_t reg_addr,
-                       uint16_t num_regs,
-                       uint16_t *out)
+static int modbus_read_reg(uint8_t  slave,
+                           uint8_t  fc,
+                           uint16_t reg_addr,
+                           uint16_t *out)
 {
-    // Build 8-byte Modbus RTU request
-    uint8_t  req[8];
+    uint8_t req[8];
     req[0] = slave;
     req[1] = fc;
     req[2] = (uint8_t)(reg_addr >> 8);
     req[3] = (uint8_t)(reg_addr & 0xFFu);
-    req[4] = (uint8_t)(num_regs >> 8);
-    req[5] = (uint8_t)(num_regs & 0xFFu);
+    req[4] = 0x00u;
+    req[5] = 0x01u;                         // always 1 register
     uint16_t crc = crc16_modbus(req, 6);
-    req[6] = (uint8_t)(crc & 0xFFu);			// low byte first in MODBUS CRC
+    req[6] = (uint8_t)(crc & 0xFFu);
     req[7] = (uint8_t)(crc >> 8);
 
-    // Transmit
-	USART1->SR &= ~USART_SR_TC;   				// clear stale TC flag first
+    USART1->SR &= ~USART_SR_TC;
     DE_RE_HIGH();
     for (uint8_t i = 0; i < 8; i++) uart_send_byte(req[i]);
-    while (!(USART1->SR & USART_SR_TC));   		// wait until shift-reg empty
+    while (!(USART1->SR & USART_SR_TC));
     DE_RE_LOW();
 
-    // Receive: 3 header + 2*N data + 2 CRC
-    uint8_t expected = (uint8_t)(3u + 2u * num_regs + 2u);
-    if (expected > RX_BUF_SIZE) return -1;
-
-    uint8_t rx[RX_BUF_SIZE];
-    for (uint8_t i = 0; i < expected; i++)
+    // Fixed response: 3 header + 2 data + 2 CRC = 7 bytes
+    uint8_t rx[7];
+    for (uint8_t i = 0; i < 7; i++)
         if (uart_recv_byte(&rx[i], TX_TIMEOUT) != 0) return -1;
 
-    // Validate CRC
-    uint16_t rx_crc   = ((uint16_t)rx[expected - 1] << 8) | rx[expected - 2];
-    uint16_t calc_crc = crc16_modbus(rx, (uint16_t)(expected - 2u));
+    uint16_t rx_crc   = ((uint16_t)rx[6] << 8) | rx[5];
+    uint16_t calc_crc = crc16_modbus(rx, 5);
     if (rx_crc != calc_crc) return -1;
 
-    // Unpack big-endian register values
-    for (uint16_t i = 0; i < num_regs; i++)
-        out[i] = ((uint16_t)rx[3u + i * 2u] << 8) | rx[4u + i * 2u];
-
+    *out = ((uint16_t)rx[3] << 8) | rx[4];
     return 0;
 }
 
-static double read_angle()
+static double read_angle(void)
 {
-	uint16_t buff = 0;
-	
-	if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ANGLE, 1, &buff) == 0)
-	{
-		return (double) buff * 360.0 / MAX_COUNT;
-	}
-	return 0.0;
+    uint16_t buff = 0;
+    if (modbus_read_reg(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ANGLE, &buff) == 0)
+        return (double)buff * 360.0 / MAX_COUNT;
+    return 0.0;
 }
 
-static int16_t read_rot()
+static int16_t read_rot(void)
 {
-	uint16_t buff = 0;
-	
-	if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ROT, 1, &buff) == 0)
-	{
-		return (int16_t) buff;
-	}
-	return 0;
+    uint16_t buff = 0;
+    if (modbus_read_reg(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_ROT, &buff) == 0)
+        return (int16_t)buff;
+    return 0;
 }
 
-static double read_temp() 
+static double read_temp(void)
 {
-	uint16_t buff = 0;
-	
-	if (modbus_read(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_TEMP, 1, &buff) == 0)
-	{
-		return (double) buff / 100.0;
-	}
-	return 0.0;
+    uint16_t buff = 0;
+    if (modbus_read_reg(JYME_SLAVE_ADDR, MODBUS_FC_READ_INPUT_REGS, REG_TEMP, &buff) == 0)
+        return (double)buff / 100.0;
+    return 0.0;
 }
