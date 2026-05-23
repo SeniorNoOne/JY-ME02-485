@@ -62,5 +62,10 @@ class ModbusFrame:
 
         return int.to_bytes(crc, 2, byteorder='little' if self.little_endian else 'big')
 
+    def append(self, *args):
+        for arg in args:
+            self._data += self._to_bytes(arg)
+        return self
+
     def build(self):
         return self._data + self._calc_crc()
