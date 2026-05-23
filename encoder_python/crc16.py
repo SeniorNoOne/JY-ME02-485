@@ -1,25 +1,3 @@
-import random
-from functools import wraps
-from time import time
-
-
-def timing(f):
-    @wraps(f)
-    def wrap(*args, **kwargs):
-        ts = time()
-        result = f(*args, **kwargs)
-        te = time()
-        print(f"func: {args[0].__name__} args: {args[1:], kwargs} took: {te - ts:.4} sec")
-        return result
-    return wrap
-
-
-@timing
-def benchmark(func, *args,  num=10**6, **kwargs):
-    for i in range(num):
-        func(*args, **kwargs)
-
-
 def generate_crc16_table():
     table = []
 
@@ -58,7 +36,7 @@ def calc_crc16(data, little_endian=True):
     crc = 0xFFFF
 
     for byte in data:
-        crc = (crc >> 8) ^ crc16_table[(crc ^ byte) & 0xFF]
+        crc = (crc >> 8) ^ CRC16_TABLE[(crc ^ byte) & 0xFF]
 
     crc &= 0xFFFF
 
@@ -70,9 +48,4 @@ def append_crc16(data, little_endian=True, crc_func=calc_crc16_naive):
     return data + crc
 
 
-if __name__ == '__main__':
-    crc16_table = generate_crc16_table()
-    arg_to_test = int.to_bytes(crc16_table[random.randrange(256)], 2, 'big')
-
-    benchmark(calc_crc16_naive, arg_to_test)
-    benchmark(calc_crc16, arg_to_test)
+CRC16_TABLE = generate_crc16_table()

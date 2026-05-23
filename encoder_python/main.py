@@ -4,8 +4,8 @@ import serial
 import struct
 import time
 
-from crc16_modbus import append_crc16
 from modbus import ModbusFrame
+from crc16 import append_crc16
 
 max_counts = 32768                   # max number of angle counts from 15-bit sensor
 max_rot = 32767                      # max number of revolutions (15-bit), MSB defines direction
