@@ -5,6 +5,7 @@ import struct
 import time
 
 from crc16_modbus import append_crc16
+from modbus import ModbusFrame
 
 max_counts = 32768                   # max number of angle counts from 15-bit sensor
 max_rot = 32767                      # max number of revolutions (15-bit), MSB defines direction
@@ -12,6 +13,8 @@ deg_per_count = 360.0 / max_counts   # angular scale factor of sensor
 
 # COM port setup
 port = "COM9"
+device_ID = 0x50
+
 baudrate = 9600
 # need to adjust these variables
 data_len = 69
@@ -94,7 +97,7 @@ def read_all(averages=10, max_retries=5):
 
             ser.write(cmd_bytes_read_all)
             response_header = cmd_bytes_response["read_all"]
-            response_data = ser.readline() # ser.read(21)
+            response_data = ser.readline()  # ser.read(21)
             response_len = len(response_data)
 
             print("Read data:")

@@ -24,8 +24,7 @@ def generate_crc16_table():
     table = []
 
     for i in range(256):
-        crc = (
-            i)
+        crc = i
 
         for _ in range(8):
             if crc & 1:
