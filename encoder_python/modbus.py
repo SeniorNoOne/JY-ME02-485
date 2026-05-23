@@ -21,6 +21,10 @@ class ModbusFrame:
             return bytes([arg])
         elif isinstance(arg, str):
             return bytes.fromhex(arg)
+        elif isinstance(arg, tuple):
+            # for multi-byte integer fields (value, length)
+            value, length = arg
+            return value.to_bytes(length, byteorder='big')
         else:
             raise TypeError(f"Unsupported type: {type(arg)}")
 
