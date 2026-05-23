@@ -29,7 +29,7 @@ def calc_crc16_naive(data, little_endian=True):
 
     crc &= 0xFFFF
 
-    return int.to_bytes(crc, 2, byteorder='little' if little_endian else 'big')
+    return int.to_bytes(crc, 2, byteorder="little" if little_endian else "big")
 
 
 def calc_crc16(data, little_endian=True):
@@ -40,7 +40,7 @@ def calc_crc16(data, little_endian=True):
 
     crc &= 0xFFFF
 
-    return int.to_bytes(crc, 2, byteorder='little' if little_endian else 'big')
+    return int.to_bytes(crc, 2, byteorder="little" if little_endian else "big")
 
 
 def append_crc16(data, little_endian=True, crc_func=calc_crc16_naive):

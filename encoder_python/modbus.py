@@ -24,7 +24,7 @@ class ModbusFrame:
         elif isinstance(arg, tuple):
             # for multi-byte integer fields (value, length)
             value, length = arg
-            return value.to_bytes(length, byteorder='big')
+            return value.to_bytes(length, byteorder="big")
         else:
             raise TypeError(f"Unsupported type: {type(arg)}")
 
@@ -54,7 +54,7 @@ class ModbusFrame:
 
         crc &= 0xFFFF
 
-        return int.to_bytes(crc, 2, byteorder='little' if self.little_endian else 'big')
+        return int.to_bytes(crc, 2, byteorder="little" if self.little_endian else "big")
 
     def _calc_crc16(self):
         crc = 0xFFFF
@@ -64,7 +64,7 @@ class ModbusFrame:
 
         crc &= 0xFFFF
 
-        return int.to_bytes(crc, 2, byteorder='little' if self.little_endian else 'big')
+        return int.to_bytes(crc, 2, byteorder="little" if self.little_endian else "big")
 
     def append(self, *args):
         for arg in args:

@@ -37,7 +37,7 @@ def print_hex(bytes_data, formated_byte_len=2, idx_padding=0, hex_idx=True):
     print(data_row)
 
 
-def file_logging(f):
+def file_logging():
     LOGDIR = r"./logdir"
     LOGFILE = "encoder_data.csv"
     VERSION = "JY-ME02"
