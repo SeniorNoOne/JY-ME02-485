@@ -55,13 +55,18 @@ def _encode_address(raw_val):
 
 def _encode_mode(raw_val):
     options = {
-        0x00: "Single turn mode",
-        0x01: "Multiple turn mode",
+        "single":       0x00,
+        "single_turn":  0x00,  
+        "multi":        0x01,
+        "multi_turn":   0x01,   
+        "multiple":     0x01,    
+        0x00:           0x00,
+        0x01:           0x01,
     }
 
     if raw_val not in options:
         raise ValueError(f"Mode {raw_val} not supported, must be one of {list(options)}")
-    return raw_val
+    return options[raw_val]
 
 
 def _encode_angular_vel_sample_time_ms(raw_val):

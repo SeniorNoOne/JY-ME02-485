@@ -104,6 +104,7 @@ class JYME02:
         return self.write("general", 0x01)
 
     def write_baud(self, raw_val):
+        # probably requires power cycling
         self.write_wrapped("baud", raw_val)
 
     def write_address(self, raw_val):
