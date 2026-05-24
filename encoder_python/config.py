@@ -31,7 +31,7 @@ COMMANDS = {
     "angular_vel_sr":   {"func": "read", "addr": "00 17", "data": 0x01, "parser": None},
 
     # bulk read
-    "read_all":         {"func": "read", "addr": "00 04", "data": 0x24, "parser": None},
+    "all":              {"func": "read", "addr": "00 04", "data": 0x24, "parser": None},
 
     # measurement registers (read only)
     "angle": {
