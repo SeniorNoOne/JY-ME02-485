@@ -1,11 +1,11 @@
 import serial
 
-from config import MAX_DATA_LEN, READ_REQUESTS, WRITE_REQUESTS
+from config import MAX_DATA_LEN, READ_REQUESTS, WRITE_REQUESTS, REGISTER_BYTE_WIDTH
 from modbus import ModbusFrame
 
 
 class JYME02:
-    def __init__(self, device_id, com, baud=9600, timeout=0.02, averages=10):
+    def __init__(self, device_id, com, baud=9600, timeout=0.02, averages=5):
         self.com = com
         self.baud = baud
         self.timeout = timeout
@@ -26,16 +26,16 @@ class JYME02:
 
         return accum / averages
 
+    def read(self, command):
+        cmd_bytes, parser = self._read_commands[command]
+        raw = self._read_register(cmd_bytes, self.averages if parser else 1)
+        return parser(raw) if parser else raw
+
     def _write_register(self, cmd_bytes):
         with serial.Serial(self.com, self.baud, timeout=self.timeout) as ser:
             ser.write(cmd_bytes)
             response_data = ser.read(MAX_DATA_LEN)
         return response_data
-
-    def read(self, command):
-        cmd_bytes, parser = self._read_commands[command]
-        raw = self._read_register(cmd_bytes, self.averages if parser else 1)
-        return parser(raw) if parser else raw
 
     def write(self, command, raw_val=None):
         cmd_bytes_template, encoder, dynamic = self._write_commands[command]
@@ -44,6 +44,7 @@ class JYME02:
             data = encoder(raw_val)
         else:
             data = raw_val
+        data = (data, REGISTER_BYTE_WIDTH)
 
         cmd_bytes = ModbusFrame(cmd_bytes_template, data).build() if dynamic else cmd_bytes_template
         raw = self._write_register(cmd_bytes)
@@ -78,8 +79,8 @@ class JYME02:
     def read_mode(self):
         return self.read("mode")
 
-    def read_angular_vel_sr(self):
-        return self.read("angular_vel_sr")
+    def read_angular_vel_sample_time_ms(self):
+        return self.read("angular_vel_sample_time_ms")
 
     def read_all(self):
         return self.read("all")
@@ -101,7 +102,13 @@ class JYME02:
 
     def reset(self):
         return self.write("general", 0x01)
-    
+
+    def write_baud(self, raw_val):
+        self.write_wrapped("baud", raw_val)
+
+    def write_address(self, raw_val):
+        self.write_wrapped("address", raw_val)
+
     def write_mode(self, raw_val):
         self.write_wrapped("mode", raw_val)
 
@@ -110,3 +117,9 @@ class JYME02:
 
     def write_rot(self, raw_val):
         self.write_wrapped("rot", raw_val)
+
+    def write_rot_dir(self, raw_val):
+        self.write_wrapped("rot_dir", raw_val)
+
+    def write_angular_vel_sample_time_ms(self, raw_val):
+        self.write_wrapped("angular_vel_sample_time_ms", raw_val)
