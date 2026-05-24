@@ -4,7 +4,7 @@ from config import MAX_DATA_LEN, READ_REQUESTS
 
 
 class JYME02:
-    def __init__(self, device_id, com, baud=9600, timeout=0.5, averages=10):
+    def __init__(self, device_id, com, baud=9600, timeout=0.02, averages=10):
         self.com = com
         self.baud = baud
         self.timeout = timeout
@@ -23,6 +23,9 @@ class JYME02:
                 accum += int.from_bytes(response_data[3:5], "big")
 
         return accum / averages
+
+    def _write_register(self, cmd_bytes):
+        pass
 
     def read(self, command):
         cmd_bytes, parser = self._commands[command]
@@ -58,3 +61,9 @@ class JYME02:
 
     def read_all(self):
         return self.read("all")
+
+    def benchmark_read(self):
+        for param in self._commands:
+            method = getattr(self, f"read_{param}")
+            if method:
+                print(f"{param}: {method()}")
