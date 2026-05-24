@@ -4,7 +4,7 @@ MAX_COUNTS = 32768                   # max number of angle counts from 15-bit se
 DEG_PER_COUNT = 360.0 / MAX_COUNTS   # angular scale factor of sensor
 
 # COM port setup
-PORT = "COM9"
+PORT = "COM8"
 BAUD = 9600
 TIMEOUT_SEC = 0.02
 
@@ -22,6 +22,18 @@ FUNCTION_CODES = {
 }
 
 
+def _encode_general(raw_val):
+    options = {
+        0x00: "Save config",
+        0x01: "Restore defaults",
+        0xFF: "Restart",
+    }
+
+    if raw_val not in options:
+        raise ValueError(f"Save {raw_val} not supported, must be one of {list(options)}")
+    return raw_val, 2
+
+
 def _encode_baud(raw_val):
     options = {
         4800: 0x01, 9600: 0x02, 19200: 0x03, 38400: 0x04,
@@ -30,13 +42,13 @@ def _encode_baud(raw_val):
 
     if raw_val not in options:
         raise ValueError(f"Baud {raw_val} not supported, must be one of {list(options)}")
-    return options[raw_val]
+    return options[raw_val], 2
 
 
 def _encode_address(raw_val):
     if not (isinstance(raw_val, int) and (0 <= raw_val <= 127)):
         raise ValueError(f"Address {raw_val} not supported, must be in range [0...127]")
-    return raw_val
+    return raw_val, 2
 
 
 def _encode_mode(raw_val):
@@ -47,26 +59,26 @@ def _encode_mode(raw_val):
 
     if raw_val not in options:
         raise ValueError(f"Mode {raw_val} not supported, must be one of {list(options)}")
-    return options[raw_val]
+    return raw_val, 2
 
 
 def _encode_angular_vel_sr(raw_val):
     if not (isinstance(raw_val, int) and (0 <= raw_val <= MAX_COUNTS - 1)):
         raise ValueError(f"Angular velocity sampling time {raw_val} not supported, "
                          f"must be in range [0...{MAX_COUNTS - 1}]")
-    return raw_val
+    return raw_val, 2
 
 
 def _encode_angle(raw_val):
     if not (isinstance(raw_val, int) and (0 <= raw_val <= 360)):
         raise ValueError(f"Angle {raw_val} not supported, must be one of [0...360]")
-    return raw_val
+    return raw_val, 2
 
 
 def _encode_rot(raw_val):
     if not (isinstance(raw_val, int) and (0 <= raw_val <= MAX_COUNTS)):
         raise ValueError(f"Angle {raw_val} not supported, must be one of f[0...{MAX_COUNTS - 1}]")
-    return raw_val
+    return raw_val, 2
 
 
 def _encode_rot_dir(raw_val):
@@ -78,7 +90,7 @@ def _encode_rot_dir(raw_val):
     if raw_val not in options:
         raise ValueError(f"Rotation direction {raw_val} not supported, "
                          f"must be one of {list(options)}")
-    return raw_val
+    return raw_val, 2
 
 
 COMMANDS = {
@@ -91,6 +103,11 @@ COMMANDS = {
     "unlock": {
         "addr": "00 69",
         "write": {"data": 0xB588, "parser": None, "dynamic": False},
+    },
+
+    "general": {
+        "addr": "00 00",
+        "write": {"data": None, "parser": _encode_general, "dynamic": True},
     },
 
     # bulk read
@@ -113,9 +130,9 @@ COMMANDS = {
     },
 
     "mode": {
-        "addr": "00 10",
+        "addr": "00 15",
         "read": {"data": 0x01, "parser": None, "dynamic": True},
-        "write": {"data": None, "parser": _encode_address, "dynamic": True},
+        "write": {"data": None, "parser": _encode_mode, "dynamic": True},
     },
 
     # measurement registers (read/write)
@@ -127,7 +144,10 @@ COMMANDS = {
 
     "rot": {
         "addr": "00 12",
-        "read": {"data": 0x01, "parser": lambda x: x if x < MAX_COUNTS else x - MAX_COUNTS},
+        "read": {
+            "data": 0x01,
+            "parser": lambda x: int(x) if x < MAX_COUNTS else int(x - MAX_COUNTS * 2)
+        },
         "write": {"data": None, "parser": _encode_rot, "dynamic": True},
     },
 
@@ -151,7 +171,7 @@ COMMANDS = {
 
     "angular_vel": {
         "addr": "00 13",
-        "read": {"data": 0x01, "parser": lambda x: x if x < MAX_COUNTS else x - MAX_COUNTS},
+        "read": {"data": 0x01, "parser": lambda x: x if x < MAX_COUNTS else x - MAX_COUNTS * 2},
     },
 }
 
@@ -167,12 +187,13 @@ for command, cfg in COMMANDS.items():
     if "write" in cfg:
         data = cfg["write"]["data"]
         parser = cfg["write"]["parser"]
+        dynamic = cfg["write"]["dynamic"]
 
         if data is None:
-            frame = ModbusFrame(DEVICE_ID, FUNCTION_CODES["write"], addr).build()
+            frame = ModbusFrame(DEVICE_ID, FUNCTION_CODES["write"], addr).build(False)
         else:
             frame = ModbusFrame(DEVICE_ID, FUNCTION_CODES["write"], addr, (data, 2)).build()
-        WRITE_REQUESTS[command] = (frame, parser)
+        WRITE_REQUESTS[command] = (frame, parser, dynamic)
 
 # JY-ME02-485 typical response headers
 RESPONSE_HEADERS = {

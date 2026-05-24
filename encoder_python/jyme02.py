@@ -1,6 +1,7 @@
 import serial
 
-from config import MAX_DATA_LEN, READ_REQUESTS
+from config import MAX_DATA_LEN, READ_REQUESTS, WRITE_REQUESTS
+from modbus import ModbusFrame
 
 
 class JYME02:
@@ -11,7 +12,8 @@ class JYME02:
         self.device_id = device_id
         self.averages = averages
 
-        self._commands = READ_REQUESTS
+        self._read_commands = READ_REQUESTS
+        self._write_commands = WRITE_REQUESTS
 
     def _read_register(self, cmd_bytes, averages):
         accum = 0
@@ -25,12 +27,32 @@ class JYME02:
         return accum / averages
 
     def _write_register(self, cmd_bytes):
-        pass
+        with serial.Serial(self.com, self.baud, timeout=self.timeout) as ser:
+            ser.write(cmd_bytes)
+            response_data = ser.read(MAX_DATA_LEN)
+        return response_data
 
     def read(self, command):
-        cmd_bytes, parser = self._commands[command]
+        cmd_bytes, parser = self._read_commands[command]
         raw = self._read_register(cmd_bytes, self.averages if parser else 1)
         return parser(raw) if parser else raw
+
+    def write(self, command, raw_val=None):
+        cmd_bytes_template, encoder, dynamic = self._write_commands[command]
+
+        if encoder:
+            data = encoder(raw_val)
+        else:
+            data = raw_val
+
+        cmd_bytes = ModbusFrame(cmd_bytes_template, data).build() if dynamic else cmd_bytes_template
+        raw = self._write_register(cmd_bytes)
+        return raw
+
+    def write_wrapped(self, command, raw_val=None):
+        self.unlock()
+        self.write(command, raw_val)
+        self.save()
 
     def read_angle(self):
         return self.read("angle")
@@ -63,7 +85,28 @@ class JYME02:
         return self.read("all")
 
     def benchmark_read(self):
-        for param in self._commands:
+        for param in self._read_commands:
             method = getattr(self, f"read_{param}")
             if method:
                 print(f"{param}: {method()}")
+
+    def unlock(self):
+        return self.write("unlock")
+
+    def save(self):
+        return self.write("general", 0x00)
+
+    def restart(self):
+        return self.write("general", 0xFF)
+
+    def reset(self):
+        return self.write("general", 0x01)
+    
+    def write_mode(self, raw_val):
+        self.write_wrapped("mode", raw_val)
+
+    def write_angle(self, raw_val):
+        self.write_wrapped("angle", raw_val)
+
+    def write_rot(self, raw_val):
+        self.write_wrapped("rot", raw_val)

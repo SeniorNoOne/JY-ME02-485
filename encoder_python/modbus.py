@@ -71,5 +71,5 @@ class ModbusFrame:
             self._data += self._to_bytes(arg)
         return self
 
-    def build(self):
-        return self._data + self._calc_crc()
+    def build(self, add_crc=True):
+        return self._data + self._calc_crc() if add_crc else self._data
