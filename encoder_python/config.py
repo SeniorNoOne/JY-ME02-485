@@ -6,6 +6,7 @@ DEG_PER_COUNT = 360.0 / MAX_COUNTS   # angular scale factor of sensor
 # COM port setup
 PORT = "COM9"
 BAUD = 9600
+TIMEOUT_SEC = 0.05
 
 # JY-ME02-485
 MAX_DATA_LEN = 69

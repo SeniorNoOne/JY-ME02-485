@@ -56,16 +56,24 @@ def read_all(averages=10, max_retries=5):
 
 
 def read_data_by_reg(averages=10):
-    with serial.Serial(PORT, BAUD, timeout=0.1) as ser:
+    with serial.Serial(PORT, BAUD, timeout=TIMEOUT_SEC) as ser:
         for param, (cmd_bytes, func) in READ_REQUESTS.items():
             accum = 0
 
-            for _ in range(averages):
+            if func is not None:
+                for _ in range(averages):
+                    ser.write(cmd_bytes)
+                    response_data = ser.read(MAX_DATA_LEN)
+                    accum += int.from_bytes(response_data[3:5], "big")
+
+                print(f"{param} - {func(accum / averages)}")
+
+            else:
                 ser.write(cmd_bytes)
                 response_data = ser.read(MAX_DATA_LEN)
                 accum += int.from_bytes(response_data[3:5], "big")
 
-            print(f"{param} - {func(accum / averages)}")
+                print(f"{param} - {accum}")
 
         param = "read_all"
         cmd_bytes, func = READ_REQUESTS[param]
