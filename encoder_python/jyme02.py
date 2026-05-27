@@ -105,6 +105,7 @@ class JYME02:
             for _ in range(averages):
                 ser.write(cmd_bytes)
                 response_data = ser.read(self._max_data_len)
+                # TODO: fix hardcoded values
                 accum += int.from_bytes(response_data[3:5], "big")
 
         return accum / averages
@@ -164,8 +165,8 @@ class JYME02:
     def read_baud(self):
         return self.read("baud")
 
-    def read_address(self):
-        return self.read("address")
+    def read_device_id(self):
+        return self.read("device_id")
 
     def read_mode(self):
         return self.read("mode")
@@ -174,6 +175,7 @@ class JYME02:
         return self.read("angular_vel_sample_time_ms")
 
     def read_all(self):
+        # TODO: it still reads bytes from 3 to 5
         return self.read("all")
 
     def benchmark_read(self):
@@ -198,8 +200,8 @@ class JYME02:
         # probably requires power cycling
         self.write_wrapped("baud", raw_val)
 
-    def write_address(self, raw_val):
-        self.write_wrapped("address", raw_val)
+    def write_device_id(self, raw_val):
+        self.write_wrapped("device_id", raw_val)
 
     def write_mode(self, raw_val):
         self.write_wrapped("mode", raw_val)

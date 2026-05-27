@@ -133,7 +133,7 @@ def validate_averages(raw_val):
     It does not verify whether averages, serial baud, timeout, and device update rate are
     consistent with each other. Therefore, a valid averages value may still cause slow reads,
     timeouts, stale data, or unreliable averaging if the serial timing is not configured properly"""
-    # TODO: - establish this behaviour and make validator to take it into account
+    # TODO: establish this behaviour and make validator to take it into account
 
     if not (isinstance(raw_val, int) and (1 <= raw_val <= DEFAULT_MAX_AVERAGES)):
         raise ValueError(f"Angle {raw_val} not supported, must be in range "
@@ -178,6 +178,7 @@ COMMANDS = {
     # parser under "write" is an encoder: physical value -> raw register value
     # parser under "read" in a decoder: raw register value -> physical value
     # unlock command to be able to use config registers
+    # TODO: change `data` for `read` to `reg_count`
     "unlock": {
         "addr": "00 69",
         "write": {"data": 0xB588, "parser": None, "dynamic": False},
@@ -266,5 +267,5 @@ RESPONSE_HEADERS = {
 
 # Making config dicts immutable
 FUNCTION_CODES = MappingProxyType(FUNCTION_CODES)
-COMMAND_CODES = MappingProxyType(COMMANDS)
+COMMANDS = MappingProxyType(COMMANDS)
 RESPONSE_HEADERS = MappingProxyType(RESPONSE_HEADERS)
