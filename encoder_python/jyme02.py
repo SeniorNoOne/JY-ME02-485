@@ -4,6 +4,13 @@ from config import MAX_DATA_LEN, READ_REQUESTS, WRITE_REQUESTS, REGISTER_BYTE_WI
 from modbus import ModbusFrame
 
 
+# TODO:
+#  - add write benchmark function, but note that id DEVICE_ID is changed in runtime,
+#    then COMMANDS and all other config dicts should be reevaluated
+#  - make generation of the config dicts via functions
+#  - expose print_cmd flag to CLI
+
+
 class JYME02:
     def __init__(self, device_id, com, baud=9600, timeout=0.02, averages=5):
         self.com = com
@@ -26,8 +33,12 @@ class JYME02:
 
         return accum / averages
 
-    def read(self, command):
+    def read(self, command, print_cmd=False):
         cmd_bytes, parser = self._read_commands[command]
+
+        if print_cmd:
+            print(cmd_bytes)
+
         raw = self._read_register(cmd_bytes, self.averages if parser else 1)
         return parser(raw) if parser else raw
 
