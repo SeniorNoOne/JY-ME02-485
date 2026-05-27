@@ -49,7 +49,7 @@ def validate_general(raw_val):
     return raw_val
 
 
-def validate_baud(raw_val):
+def validate_baud(raw_val, return_raw=False):
     options = {
         4800: 0x01, 9600: 0x02, 19200: 0x03, 38400: 0x04,
         57600: 0x05, 115200: 0x06, 230400: 0x07
@@ -57,7 +57,7 @@ def validate_baud(raw_val):
 
     if raw_val not in options:
         raise ValueError(f"Baud {raw_val} not supported, must be one of {list(options)}")
-    return options[raw_val]
+    return raw_val if return_raw else options[raw_val]
 
 
 def validate_device_id(raw_val):

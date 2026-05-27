@@ -21,7 +21,7 @@ class JYME02:
                  commands=None):
         # Serial specific
         self.com = cfg.validate_com(com)
-        self.baud = cfg.validate_baud(baud)
+        self.baud = cfg.validate_baud(baud, return_raw=True)
         self.timeout = cfg.validate_timeout(timeout)
         self.averages = cfg.validate_averages(averages)
 
@@ -80,7 +80,7 @@ class JYME02:
                 frame = ModbusFrame(self._device_id,
                                     self._func_codes["read"],
                                     addr,
-                                    data)
+                                    (data, 2))
                 self._read_commands[command] = (frame.build(), parser)
 
             if "write" in conf:
@@ -88,11 +88,15 @@ class JYME02:
                 parser = conf["write"]["parser"]
                 dynamic = conf["write"]["dynamic"]
 
-                frame = ModbusFrame(self._device_id, self._func_codes["read"], addr)
-                if data:
-                    frame.append((data, 2))
-
-                self._write_commands[command] = (frame.build(), parser, dynamic)
+                if dynamic:
+                    frame = ModbusFrame(self._device_id, self._func_codes["write"], addr)
+                    self._write_commands[command] = (frame.build(add_crc=False), parser, dynamic)
+                else:
+                    frame = ModbusFrame(self._device_id,
+                                        self._func_codes["write"],
+                                        addr,
+                                        (data, 2))
+                    self._write_commands[command] = (frame.build(), parser, dynamic)
 
     def _read_register(self, cmd_bytes, averages):
         accum = 0
@@ -109,7 +113,7 @@ class JYME02:
         cmd_bytes, parser = self._read_commands[command]
 
         if print_cmd:
-            print(cmd_bytes)
+            print(cmd_bytes.hex())
 
         raw = self._read_register(cmd_bytes, self.averages if parser else 1)
         return parser(raw) if parser else raw
@@ -120,7 +124,7 @@ class JYME02:
             response_data = ser.read(self._max_data_len)
         return response_data
 
-    def write(self, command, raw_val=None):
+    def write(self, command, raw_val=None, print_cmd=False):
         cmd_bytes_template, encoder, dynamic = self._write_commands[command]
 
         if encoder:
@@ -130,6 +134,10 @@ class JYME02:
         data = (data, self._register_byte_width)
 
         cmd_bytes = ModbusFrame(cmd_bytes_template, data).build() if dynamic else cmd_bytes_template
+
+        if print_cmd:
+            print(cmd_bytes.hex())
+
         raw = self._write_register(cmd_bytes)
         return raw
 
