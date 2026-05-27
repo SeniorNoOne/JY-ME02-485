@@ -1,4 +1,4 @@
-from modbus import ModbusFrame
+from types import MappingProxyType
 
 MAX_COUNTS = 32768                   # max number of angle counts from 15-bit sensor
 DEG_PER_COUNT = 360.0 / MAX_COUNTS   # angular scale factor of sensor
@@ -14,9 +14,6 @@ DEVICE_ID = 0x50
 READ_DELAY_MS = 200
 AVERAGES = 5
 REGISTER_BYTE_WIDTH = 2
-
-READ_REQUESTS = {}
-WRITE_REQUESTS = {}
 
 FUNCTION_CODES = {
     "read": "03",
@@ -189,26 +186,6 @@ COMMANDS = {
     },
 }
 
-for command, cfg in COMMANDS.items():
-    addr = cfg["addr"]
-
-    if "read" in cfg:
-        data = cfg["read"]["data"]
-        parser = cfg["read"]["parser"]
-        frame = ModbusFrame(DEVICE_ID, FUNCTION_CODES["read"], addr, (data, 2)).build()
-        READ_REQUESTS[command] = (frame, parser)
-
-    if "write" in cfg:
-        data = cfg["write"]["data"]
-        parser = cfg["write"]["parser"]
-        dynamic = cfg["write"]["dynamic"]
-
-        if data is None:
-            frame = ModbusFrame(DEVICE_ID, FUNCTION_CODES["write"], addr).build(False)
-        else:
-            frame = ModbusFrame(DEVICE_ID, FUNCTION_CODES["write"], addr, (data, 2)).build()
-        WRITE_REQUESTS[command] = (frame, parser, dynamic)
-
 # JY-ME02-485 typical response headers
 RESPONSE_HEADERS = {
     "angle": None,
@@ -219,3 +196,8 @@ RESPONSE_HEADERS = {
     # length was removed, since length of the response depends on request
     "read_all": bytes.fromhex("50 03"),
 }
+
+# Making config dicts immutable
+FUNCTION_CODES = MappingProxyType(FUNCTION_CODES)
+COMMAND_CODES = MappingProxyType(COMMANDS)
+RESPONSE_HEADERS = MappingProxyType(RESPONSE_HEADERS)

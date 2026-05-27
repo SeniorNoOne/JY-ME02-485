@@ -2,7 +2,7 @@ import argparse
 import sys
 
 from jyme02 import JYME02
-from config import READ_REQUESTS, WRITE_REQUESTS, PORT, DEVICE_ID, BAUD, TIMEOUT_SEC, AVERAGES
+from config import COMMANDS, PORT, DEVICE_ID, BAUD, TIMEOUT_SEC, AVERAGES
 
 
 def build_parser():
@@ -30,13 +30,15 @@ def build_parser():
     subparsers = parser.add_subparsers(dest="action", required=True)
 
     # read
+    read_commands = (cmd for cmd in COMMANDS if COMMANDS[cmd].get("read", False))
     read_parser = subparsers.add_parser("read", help="Read one or more register values")
-    read_parser.add_argument("command", nargs="+", choices=sorted(READ_REQUESTS.keys()),
+    read_parser.add_argument("command", nargs="+", choices=sorted(read_commands),
                              help="One or more registers to read, e.g. 'angle rot temp'")
 
     # write
+    write_commands = (cmd for cmd in COMMANDS if COMMANDS[cmd].get("write", False))
     write_parser = subparsers.add_parser("write", help="Write a value to a register")
-    write_parser.add_argument("command", choices=sorted(WRITE_REQUESTS.keys()),
+    write_parser.add_argument("command", choices=sorted(write_commands),
                               help="Which register to write")
     write_parser.add_argument("value", help="Value to write (number or string option, "
                                             "e.g. 90, cw, multi)")

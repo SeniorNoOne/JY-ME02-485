@@ -1,6 +1,6 @@
 import serial
 
-from config import MAX_DATA_LEN, READ_REQUESTS, WRITE_REQUESTS, REGISTER_BYTE_WIDTH
+from config import FUNCTION_CODES, COMMANDS, REGISTER_BYTE_WIDTH, MAX_DATA_LEN, _encode_address
 from modbus import ModbusFrame
 
 
@@ -12,15 +12,60 @@ from modbus import ModbusFrame
 
 
 class JYME02:
-    def __init__(self, device_id, com, baud=9600, timeout=0.02, averages=5):
+    def __init__(self, com, device_id, baud=9600, timeout=0.02, averages=5,
+                 register_byte_width=REGISTER_BYTE_WIDTH, max_data_len=MAX_DATA_LEN,
+                 function_codes=None, commands=None):
+        # Serial specific
         self.com = com
         self.baud = baud
         self.timeout = timeout
-        self.device_id = device_id
         self.averages = averages
 
-        self._read_commands = READ_REQUESTS
-        self._write_commands = WRITE_REQUESTS
+        # Modbus specific
+        self._device_id = device_id
+        self._register_byte_width = register_byte_width
+        self._max_data_len = max_data_len
+        self._func_codes = function_codes if function_codes is not None else FUNCTION_CODES
+        self._commands = commands if commands is not None else COMMANDS
+        self._read_commands = {}
+        self._write_commands = {}
+
+        # Explicitly building requests
+        self._build_requests()
+
+    @property
+    def device_id(self):
+        return self._device_id
+
+    @device_id.setter
+    def device_id(self, device_id):
+        self._device_id = _encode_address(device_id)
+        self._build_requests()
+
+    def _build_requests(self):
+        for command, cfg in self._commands.items():
+            addr = cfg["addr"]
+
+            if "read" in cfg:
+                data = cfg["read"]["data"]
+                parser = cfg["read"]["parser"]
+                frame = ModbusFrame(self._device_id,
+                                    self._func_codes["read"],
+                                    addr,
+                                    data
+                                    )
+                self._read_commands[command] = (frame.build(), parser)
+
+            if "write" in cfg:
+                data = cfg["write"]["data"]
+                parser = cfg["write"]["parser"]
+                dynamic = cfg["write"]["dynamic"]
+
+                frame = ModbusFrame(self._device_id, self._func_codes["read"], addr)
+                if data:
+                    frame.append((data, 2))
+
+                self._write_commands[command] = (frame.build(), parser, dynamic)
 
     def _read_register(self, cmd_bytes, averages):
         accum = 0
@@ -28,7 +73,7 @@ class JYME02:
         with serial.Serial(self.com, self.baud, timeout=self.timeout) as ser:
             for _ in range(averages):
                 ser.write(cmd_bytes)
-                response_data = ser.read(MAX_DATA_LEN)
+                response_data = ser.read(self._max_data_len)
                 accum += int.from_bytes(response_data[3:5], "big")
 
         return accum / averages
@@ -45,7 +90,7 @@ class JYME02:
     def _write_register(self, cmd_bytes):
         with serial.Serial(self.com, self.baud, timeout=self.timeout) as ser:
             ser.write(cmd_bytes)
-            response_data = ser.read(MAX_DATA_LEN)
+            response_data = ser.read(self._max_data_len)
         return response_data
 
     def write(self, command, raw_val=None):
@@ -55,7 +100,7 @@ class JYME02:
             data = encoder(raw_val)
         else:
             data = raw_val
-        data = (data, REGISTER_BYTE_WIDTH)
+        data = (data, self._register_byte_width)
 
         cmd_bytes = ModbusFrame(cmd_bytes_template, data).build() if dynamic else cmd_bytes_template
         raw = self._write_register(cmd_bytes)
