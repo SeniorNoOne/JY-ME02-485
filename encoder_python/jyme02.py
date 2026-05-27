@@ -1,37 +1,41 @@
 import serial
+from types import MappingProxyType
 
-from config import FUNCTION_CODES, COMMANDS, REGISTER_BYTE_WIDTH, MAX_DATA_LEN, validate_address
+import config as cfg
 from modbus import ModbusFrame
 
 
 # TODO:
 #  - add write benchmark function, but note that id DEVICE_ID is changed in runtime,
 #    then COMMANDS and all other config dicts should be reevaluated
-#  - make generation of the config dicts via functions
 #  - expose print_cmd flag to CLI
 
 
 class JYME02:
-    def __init__(self, com, device_id, baud=9600, timeout=0.02, averages=5,
-                 register_byte_width=REGISTER_BYTE_WIDTH, max_data_len=MAX_DATA_LEN,
-                 func_codes=None, commands=None):
+    def __init__(self, com,
+                 device_id=cfg.DEFAULT_DEVICE_ID,
+                 baud=cfg.DEFAULT_BAUD,
+                 timeout=cfg.DEFAULT_TIMEOUT_SEC,
+                 averages=cfg.DEFAULT_AVERAGES,
+                 func_codes=None,
+                 commands=None):
         # Serial specific
-        self.com = com
-        self.baud = baud
-        self.timeout = timeout
-        self.averages = averages
+        self.com = cfg.validate_com(com)
+        self.baud = cfg.validate_baud(baud)
+        self.timeout = cfg.validate_timeout(timeout)
+        self.averages = cfg.validate_averages(averages)
 
         # Modbus specific
-        self._device_id = device_id
-        self._register_byte_width = register_byte_width
-        self._max_data_len = max_data_len
-        self._func_codes = func_codes if func_codes is not None else FUNCTION_CODES
-        self._commands = commands if commands is not None else COMMANDS
+        self._register_byte_width = cfg.DEFAULT_REGISTER_BYTE_WIDTH
+        self._max_data_len = cfg.DEFAULT_MAX_DATA_LEN
+        self._func_codes = (MappingProxyType(func_codes) if func_codes is not None
+                            else cfg.FUNCTION_CODES)
+        self._commands = MappingProxyType(commands) if commands is not None else cfg.COMMANDS
         self._read_commands = {}
         self._write_commands = {}
 
-        # Explicitly building requests
-        self._build_requests()
+        # Validating device_id and building requests via setter
+        self.device_id = device_id
 
     @property
     def device_id(self):
@@ -55,61 +59,34 @@ class JYME02:
 
     @property
     def read_commands(self):
-        # TODO: provide pprint for it
         return self._read_commands
 
     @property
     def write_commands(self):
-        # TODO: provide pprint for it
         return self._write_commands
 
     @device_id.setter
     def device_id(self, device_id):
-        self._device_id = validate_address(device_id)
-        self._build_requests()
-
-    @register_byte_width.setter
-    def register_byte_width(self, byte_width):
-        # TODO: provide validator for byte width
-        self._register_byte_width = byte_width
-        self._build_requests()
-
-    @max_data_len.setter
-    def max_data_len(self, max_data_len):
-        # TODO: provide validator for max_data_len
-        self._max_data_len = max_data_len
-        self._build_requests()
-
-    @func_codes.setter
-    def func_codes(self, func_codes):
-        # TODO: provide validator for func_codes
-        self._func_codes = func_codes
-        self._build_requests()
-
-    @commands.setter
-    def commands(self, commands):
-        # TODO: provide validator for commands
-        self._commands = commands
+        self._device_id = cfg.validate_device_id(device_id)
         self._build_requests()
 
     def _build_requests(self):
-        for command, cfg in self._commands.items():
-            addr = cfg["addr"]
+        for command, conf in self._commands.items():
+            addr = conf["addr"]
 
-            if "read" in cfg:
-                data = cfg["read"]["data"]
-                parser = cfg["read"]["parser"]
+            if "read" in conf:
+                data = conf["read"]["data"]
+                parser = conf["read"]["parser"]
                 frame = ModbusFrame(self._device_id,
                                     self._func_codes["read"],
                                     addr,
-                                    data
-                                    )
+                                    data)
                 self._read_commands[command] = (frame.build(), parser)
 
-            if "write" in cfg:
-                data = cfg["write"]["data"]
-                parser = cfg["write"]["parser"]
-                dynamic = cfg["write"]["dynamic"]
+            if "write" in conf:
+                data = conf["write"]["data"]
+                parser = conf["write"]["parser"]
+                dynamic = conf["write"]["dynamic"]
 
                 frame = ModbusFrame(self._device_id, self._func_codes["read"], addr)
                 if data:

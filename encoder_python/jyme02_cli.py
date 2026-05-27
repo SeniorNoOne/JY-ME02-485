@@ -1,8 +1,8 @@
 import argparse
 import sys
 
+import config as cfg
 from jyme02 import JYME02
-from config import COMMANDS, PORT, DEVICE_ID, BAUD, TIMEOUT_SEC, AVERAGES
 
 
 def build_parser():
@@ -11,32 +11,34 @@ def build_parser():
         description="Configure and read values from a JY-ME02-485 absolute encoder over RS-485",
     )
 
-    parser.add_argument("--port", "--com", dest="port", default=PORT,
-                        help=f"Serial port, e.g. COM9 or /dev/ttyUSB0 (default {PORT})")
+    parser.add_argument("--port", "--com", dest="port", default=cfg.PORT,
+                        help=f"Serial port, e.g. COM9 or /dev/ttyUSB0 (default {cfg.PORT})")
 
-    parser.add_argument("--device-id", type=lambda x: int(x, 0), default=DEVICE_ID,
+    parser.add_argument("--device-id", type=lambda x: int(x, 0),
+                        default=cfg.DEFAULT_DEVICE_ID,
                         help=f"Modbus device/slave ID (default: 0x50). "
-                             f"Accepts hex (0x..) or decimal (default {DEVICE_ID})")
+                             f"Accepts hex (0x..) or decimal (default {cfg.DEFAULT_DEVICE_ID})")
 
-    parser.add_argument("--baud", type=int, default=BAUD,
-                        help="Serial baudrate (default: {BAUD})")
+    parser.add_argument("--baud", type=int, default=cfg.DEFAULT_BAUD,
+                        help=f"Serial baudrate (default: {cfg.DEFAULT_BAUD})")
 
-    parser.add_argument("--timeout", type=float, default=TIMEOUT_SEC,
-                        help=f"Serial read timeout in seconds (default: {TIMEOUT_SEC})")
+    parser.add_argument("--timeout", type=float, default=cfg.DEFAULT_TIMEOUT_SEC,
+                        help=f"Serial read timeout in seconds (default: {cfg.DEFAULT_TIMEOUT_SEC})")
 
-    parser.add_argument("--averages", type=int, default=AVERAGES,
-                        help=f"Number of reads to average for read commands (default: {AVERAGES})")
+    parser.add_argument("--averages", type=int, default=cfg.DEFAULT_AVERAGES,
+                        help=f"Number of reads to average for read commands "
+                             f"(default: {cfg.DEFAULT_AVERAGES})")
 
     subparsers = parser.add_subparsers(dest="action", required=True)
 
     # read
-    read_commands = (cmd for cmd in COMMANDS if COMMANDS[cmd].get("read", False))
+    read_commands = (cmd for cmd in cfg.COMMANDS if cfg.COMMANDS[cmd].get("read", False))
     read_parser = subparsers.add_parser("read", help="Read one or more register values")
     read_parser.add_argument("command", nargs="+", choices=sorted(read_commands),
                              help="One or more registers to read, e.g. 'angle rot temp'")
 
     # write
-    write_commands = (cmd for cmd in COMMANDS if COMMANDS[cmd].get("write", False))
+    write_commands = (cmd for cmd in cfg.COMMANDS if cfg.COMMANDS[cmd].get("write", False))
     write_parser = subparsers.add_parser("write", help="Write a value to a register")
     write_parser.add_argument("command", choices=sorted(write_commands),
                               help="Which register to write")
@@ -125,5 +127,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # TODO: move and update README
+    # TODO: move to main project dir and update README
     main()

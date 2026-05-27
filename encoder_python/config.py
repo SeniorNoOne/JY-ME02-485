@@ -1,3 +1,4 @@
+import re
 from types import MappingProxyType
 
 MAX_COUNTS = 32768                   # max number of angle counts from 15-bit sensor
@@ -5,15 +6,30 @@ DEG_PER_COUNT = 360.0 / MAX_COUNTS   # angular scale factor of sensor
 
 # COM port setup
 PORT = "COM8"
-BAUD = 9600
-TIMEOUT_SEC = 0.075
+DEFAULT_BAUD = 9600
+DEFAULT_TIMEOUT_SEC = 0.075
+DEFAULT_MAX_TIMEOUT_SEC = 5
 
 # JY-ME02-485
-MAX_DATA_LEN = 69
-DEVICE_ID = 0x50
-READ_DELAY_MS = 200
-AVERAGES = 5
-REGISTER_BYTE_WIDTH = 2
+DEFAULT_DEVICE_ID = 0x50
+DEFAULT_REGISTER_BYTE_WIDTH = 2
+DEFAULT_MAX_DATA_LEN = 69
+DEFAULT_AVERAGES = 5
+DEFAULT_MAX_AVERAGES = 15
+
+# Regex
+WINDOWS_COM_RE = re.compile(
+    r"^(?:COM[1-9]\d*|\\\\\.\\COM[1-9]\d*)$",
+    re.IGNORECASE,
+)
+
+UNIX_COM_RE = re.compile(
+    r"^/dev/(?:"
+    r"tty[A-Za-z0-9_.-]+|"                 # /dev/ttyUSB0, /dev/ttyACM0, /dev/ttyS0
+    r"cu\.[A-Za-z0-9_.-]+|"                # /dev/cu.usbserial-110
+    r"serial/(?:by-id|by-path)/[^/\0]+"    # /dev/serial/by-id/...
+    r")$"
+)
 
 FUNCTION_CODES = {
     "read": "03",
@@ -44,7 +60,7 @@ def validate_baud(raw_val):
     return options[raw_val]
 
 
-def validate_address(raw_val):
+def validate_device_id(raw_val):
     if not (isinstance(raw_val, int) and (0 <= raw_val <= 127)):
         raise ValueError(f"Address {raw_val} not supported, must be in range [0...127]")
     return raw_val
@@ -53,10 +69,10 @@ def validate_address(raw_val):
 def validate_mode(raw_val):
     options = {
         "single":       0x00,
-        "single_turn":  0x00,  
+        "single_turn":  0x00,
         "multi":        0x01,
-        "multi_turn":   0x01,   
-        "multiple":     0x01,    
+        "multi_turn":   0x01,
+        "multiple":     0x01,
         0x00:           0x00,
         0x01:           0x01,
     }
@@ -104,6 +120,57 @@ def validate_rot_dir(raw_val):
     return options[raw_val]
 
 
+def validate_timeout(raw_val):
+    if not (isinstance(raw_val, (int, float)) and (0 < raw_val <= DEFAULT_MAX_TIMEOUT_SEC)):
+        raise ValueError(f"Angle {raw_val} not supported, must be in range "
+                         f"({0}...{DEFAULT_MAX_TIMEOUT_SEC}]")
+    return raw_val
+
+
+def validate_averages(raw_val):
+    """This validator only checks the type and range of averages
+
+    It does not verify whether averages, serial baud, timeout, and device update rate are
+    consistent with each other. Therefore, a valid averages value may still cause slow reads,
+    timeouts, stale data, or unreliable averaging if the serial timing is not configured properly"""
+    # TODO: - establish this behaviour and make validator to take it into account
+
+    if not (isinstance(raw_val, int) and (1 <= raw_val <= DEFAULT_MAX_AVERAGES)):
+        raise ValueError(f"Angle {raw_val} not supported, must be in range "
+                         f"[{1}...{DEFAULT_MAX_TIMEOUT_SEC}]")
+    return raw_val
+
+
+def validate_com(raw_val):
+    """Validate a serial port name
+
+    Accepts common Windows and Unix-like serial port names:
+    - Windows: COM1, COM3, COM10, \\\\.\\COM10
+    - Linux: /dev/ttyUSB0, /dev/ttyACM0, /dev/ttyS0
+
+    This validator only checks the port name format. It does not check whether
+    the port exists, is connected, or is currently available
+    """
+    if not isinstance(raw_val, str):
+        raise TypeError("com must be a string")
+
+    com = raw_val.strip()
+
+    if not com:
+        raise ValueError("COM must not be empty")
+
+    if WINDOWS_COM_RE.fullmatch(com):
+        return com.upper() if not com.startswith("\\\\") else com
+
+    if UNIX_COM_RE.fullmatch(com):
+        return com
+
+    raise ValueError(
+        "Invalid serial port name. Expected Windows port like 'COM3' or "
+        "Unix-like port like '/dev/ttyUSB0', '/dev/ttyACM0', '/dev/ttyS0'"
+    )
+
+
 COMMANDS = {
     # for read operations data key means register count to read
     # for write operations it reflects data to be written in reg (always 2 bytes)
@@ -134,10 +201,10 @@ COMMANDS = {
         "write": {"data": None, "parser": validate_baud, "dynamic": True},
     },
 
-    "address": {
+    "device_id": {
         "addr": "00 1A",
         "read": {"data": 0x01, "parser": None},
-        "write": {"data": None, "parser": validate_address, "dynamic": True},
+        "write": {"data": None, "parser": validate_device_id, "dynamic": True},
     },
 
     "mode": {
