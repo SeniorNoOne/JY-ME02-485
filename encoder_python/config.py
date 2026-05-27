@@ -21,7 +21,7 @@ FUNCTION_CODES = {
 }
 
 
-def _encode_general(raw_val):
+def validate_general(raw_val):
     options = {
         0x00: "Save config",
         0x01: "Restore defaults",
@@ -33,7 +33,7 @@ def _encode_general(raw_val):
     return raw_val
 
 
-def _encode_baud(raw_val):
+def validate_baud(raw_val):
     options = {
         4800: 0x01, 9600: 0x02, 19200: 0x03, 38400: 0x04,
         57600: 0x05, 115200: 0x06, 230400: 0x07
@@ -44,13 +44,13 @@ def _encode_baud(raw_val):
     return options[raw_val]
 
 
-def _encode_address(raw_val):
+def validate_address(raw_val):
     if not (isinstance(raw_val, int) and (0 <= raw_val <= 127)):
         raise ValueError(f"Address {raw_val} not supported, must be in range [0...127]")
     return raw_val
 
 
-def _encode_mode(raw_val):
+def validate_mode(raw_val):
     options = {
         "single":       0x00,
         "single_turn":  0x00,  
@@ -66,27 +66,27 @@ def _encode_mode(raw_val):
     return options[raw_val]
 
 
-def _encode_angular_vel_sample_time_ms(raw_val):
+def validate_angular_vel_sample_time_ms(raw_val):
     if not (isinstance(raw_val, int) and (0 <= raw_val <= MAX_COUNTS - 1)):
         raise ValueError(f"Angular velocity sampling time {raw_val} not supported, "
                          f"must be in range [0...{(MAX_COUNTS - 1) / 10}]")
     return raw_val * 10
 
 
-def _encode_angle(raw_val):
+def validate_angle(raw_val):
     if not (isinstance(raw_val, int) and (0 <= raw_val <= 360)):
         raise ValueError(f"Angle {raw_val} not supported, must be in range [0...360]")
     return int(raw_val / DEG_PER_COUNT)
 
 
-def _encode_rot(raw_val):
+def validate_rot(raw_val):
     if not (isinstance(raw_val, int) and (-MAX_COUNTS <= raw_val <= MAX_COUNTS - 1)):
         raise ValueError(f"Angle {raw_val} not supported, must be in range "
                          f"[{-MAX_COUNTS}...{MAX_COUNTS - 1}]")
     return raw_val + MAX_COUNTS * 2 if raw_val < 0 else raw_val
 
 
-def _encode_rot_dir(raw_val):
+def validate_rot_dir(raw_val):
     """
     Direction is determined looking from behind the encoder where the shaft if not exposed
     """
@@ -118,7 +118,7 @@ COMMANDS = {
 
     "general": {
         "addr": "00 00",
-        "write": {"data": None, "parser": _encode_general, "dynamic": True},
+        "write": {"data": None, "parser": validate_general, "dynamic": True},
     },
 
     # bulk read
@@ -131,26 +131,26 @@ COMMANDS = {
     "baud": {
         "addr": "00 04",
         "read": {"data": 0x01, "parser": None},
-        "write": {"data": None, "parser": _encode_baud, "dynamic": True},
+        "write": {"data": None, "parser": validate_baud, "dynamic": True},
     },
 
     "address": {
         "addr": "00 1A",
         "read": {"data": 0x01, "parser": None},
-        "write": {"data": None, "parser": _encode_address, "dynamic": True},
+        "write": {"data": None, "parser": validate_address, "dynamic": True},
     },
 
     "mode": {
         "addr": "00 10",
         "read": {"data": 0x01, "parser": None, "dynamic": True},
-        "write": {"data": None, "parser": _encode_mode, "dynamic": True},
+        "write": {"data": None, "parser": validate_mode, "dynamic": True},
     },
 
     # measurement registers (read/write)
     "angle": {
         "addr": "00 11",
         "read": {"data": 0x01, "parser": lambda x: x * DEG_PER_COUNT},
-        "write": {"data": None, "parser": _encode_angle, "dynamic": True},
+        "write": {"data": None, "parser": validate_angle, "dynamic": True},
     },
 
     "rot": {
@@ -159,19 +159,19 @@ COMMANDS = {
             "data": 0x01,
             "parser": lambda x: int(x) if x < MAX_COUNTS else int(x - MAX_COUNTS * 2)
         },
-        "write": {"data": None, "parser": _encode_rot, "dynamic": True},
+        "write": {"data": None, "parser": validate_rot, "dynamic": True},
     },
 
     "rot_dir": {
         "addr": "00 15",
         "read": {"data": 0x01, "parser": None, "dynamic": True},
-        "write": {"data": None, "parser": _encode_rot_dir, "dynamic": True},
+        "write": {"data": None, "parser": validate_rot_dir, "dynamic": True},
     },
 
     "angular_vel_sample_time_ms": {
         "addr": "00 17",
         "read": {"data": 0x01, "parser": lambda x: int(x / 10), "dynamic": True},
-        "write": {"data": None, "parser": _encode_angular_vel_sample_time_ms, "dynamic": True},
+        "write": {"data": None, "parser": validate_angular_vel_sample_time_ms, "dynamic": True},
     },
 
     # measurement registers (read only)

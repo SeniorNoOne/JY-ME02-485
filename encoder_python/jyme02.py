@@ -1,6 +1,6 @@
 import serial
 
-from config import FUNCTION_CODES, COMMANDS, REGISTER_BYTE_WIDTH, MAX_DATA_LEN, _encode_address
+from config import FUNCTION_CODES, COMMANDS, REGISTER_BYTE_WIDTH, MAX_DATA_LEN, validate_address
 from modbus import ModbusFrame
 
 
@@ -14,7 +14,7 @@ from modbus import ModbusFrame
 class JYME02:
     def __init__(self, com, device_id, baud=9600, timeout=0.02, averages=5,
                  register_byte_width=REGISTER_BYTE_WIDTH, max_data_len=MAX_DATA_LEN,
-                 function_codes=None, commands=None):
+                 func_codes=None, commands=None):
         # Serial specific
         self.com = com
         self.baud = baud
@@ -25,7 +25,7 @@ class JYME02:
         self._device_id = device_id
         self._register_byte_width = register_byte_width
         self._max_data_len = max_data_len
-        self._func_codes = function_codes if function_codes is not None else FUNCTION_CODES
+        self._func_codes = func_codes if func_codes is not None else FUNCTION_CODES
         self._commands = commands if commands is not None else COMMANDS
         self._read_commands = {}
         self._write_commands = {}
@@ -37,9 +37,59 @@ class JYME02:
     def device_id(self):
         return self._device_id
 
+    @property
+    def register_byte_width(self):
+        return self._register_byte_width
+
+    @property
+    def max_data_len(self):
+        return self._max_data_len
+
+    @property
+    def func_codes(self):
+        return self._func_codes
+
+    @property
+    def commands(self):
+        return self._commands
+
+    @property
+    def read_commands(self):
+        # TODO: provide pprint for it
+        return self._read_commands
+
+    @property
+    def write_commands(self):
+        # TODO: provide pprint for it
+        return self._write_commands
+
     @device_id.setter
     def device_id(self, device_id):
-        self._device_id = _encode_address(device_id)
+        self._device_id = validate_address(device_id)
+        self._build_requests()
+
+    @register_byte_width.setter
+    def register_byte_width(self, byte_width):
+        # TODO: provide validator for byte width
+        self._register_byte_width = byte_width
+        self._build_requests()
+
+    @max_data_len.setter
+    def max_data_len(self, max_data_len):
+        # TODO: provide validator for max_data_len
+        self._max_data_len = max_data_len
+        self._build_requests()
+
+    @func_codes.setter
+    def func_codes(self, func_codes):
+        # TODO: provide validator for func_codes
+        self._func_codes = func_codes
+        self._build_requests()
+
+    @commands.setter
+    def commands(self, commands):
+        # TODO: provide validator for commands
+        self._commands = commands
         self._build_requests()
 
     def _build_requests(self):
